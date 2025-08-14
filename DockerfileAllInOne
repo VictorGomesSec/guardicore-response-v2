@@ -1,0 +1,52 @@
+FROM python:3.13-slim AS base
+
+FROM base AS builder
+COPY --from=ghcr.io/astral-sh/uv:0.4.9 /uv /bin/uv
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+ENV APP_WORKDIR=/app
+WORKDIR ${APP_WORKDIR}
+COPY uv.lock pyproject.toml ${APP_WORKDIR}/
+RUN --mount=type=cache,target=/root/.cache/uv \
+  uv sync --frozen --no-install-project --no-dev
+COPY . ${APP_WORKDIR}
+RUN --mount=type=cache,target=/root/.cache/uv \
+  uv sync --frozen --no-dev
+
+FROM base AS final
+ENV APP_WORKDIR=/app
+WORKDIR ${APP_WORKDIR}
+COPY --from=builder ${APP_WORKDIR} ${APP_WORKDIR}
+
+ENV PATH="${APP_WORKDIR}/.venv/bin:$PATH"
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+
+RUN apt-get update && apt-get -y install cron vim
+
+ARG APP_NAME=run.py
+ENV APP_NAME=$APP_NAME
+
+ARG IOC_MAN_NAME=ioc_manager.py
+ENV IOC_MAN_NAME=$IOC_MAN_NAME
+
+ARG APP_CONFIG=integrations.yml
+ENV APP_CONFIG=$APP_CONFIG
+
+ARG IOC_MAN_CONFIG=companies.yml
+ENV IOC_MAN_CONFIG=$IOC_MAN_CONFIG
+
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+
+RUN export ECHO_PATH=`which echo` && \
+    export PYTHON_VER_PATH=`which python3` &&\
+    printenv >> /etc/environment && printenv >> /etc/default/locale
+RUN touch crontab
+RUN echo '*/10 * * * * ${ECHO_PATH} "crontab running `date`" > /proc/1/fd/1 2>/proc/1/fd/2' > crontab
+RUN echo '*/5 * * * * cd ${APP_WORKDIR} && ${PYTHON_VER_PATH} ${APP_WORKDIR}/${IOC_MAN_NAME} --config ${APP_WORKDIR}/${IOC_MAN_CONFIG} > /proc/1/fd/1 2>/proc/1/fd/2' >> crontab
+RUN echo '*/5 * * * * cd ${APP_WORKDIR} && ${PYTHON_VER_PATH} ${APP_WORKDIR}/${APP_NAME} --config ${APP_WORKDIR}/${APP_CONFIG} --ioc-manager-db-path ${APP_WORKDIR}/ioc.db > /proc/1/fd/1 2>/proc/1/fd/2' >> crontab
+RUN crontab crontab
+
+RUN rm -rf pyproject.toml uv.lock requirements.txt crontab
+
+CMD ["cron", "-f"]

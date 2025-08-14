@@ -1,0 +1,29 @@
+- lumu:
+    uuid: "COMPANY-UUID"
+    days: 3
+  app:
+    name: "UNIQUE-NAME"
+    rule_set: "RULE-SET-NAME" # Case Sensitive, e.g. "LumuClientARuleSet"
+#    max_indicators: MAX-INDICATORS # Optional max 5000
+    api:
+      url_management_server: "URL-MANAGEMENT-SERVER" #  "https://Hostname|FQDN|IPAddress[:Port]/"
+      username: "USERNAME"
+      password: "PASSWORD"
+#- lumu:
+#    uuid: "COMPANY-UUID"
+#    adversaryTypes: [ "C2C", "Malware", "Mining", "Spam", "Phishing", "Anonymizer"] # ["C2C", "Malware", "Mining", "Spam", "Phishing", "Anonymizer"]
+#    days: 3
+#  app:
+#    name: "UNIQUE-NAME"
+#    clean: false # true | false
+#    rule_set: "RULE-SET-NAME" # Case Sensitive, e.g. "LumuClientARuleSet"
+#    rule_id: "RULE-ID" # e.g. "RUL-C3305F6C"
+#    ioc: ["ip"] # Optional, default [ "ip" ]
+#    provisioning: true # true | false
+#    max_indicators: MAX-INDICATORS # max 5000
+#    api:
+#      url_management_server: "URL-MANAGEMENT-SERVER" #  "https://Hostname|FQDN|IPAddress[:Port]/"
+#      username: "USERNAME"
+#      password: "PASSWORD"
+
+

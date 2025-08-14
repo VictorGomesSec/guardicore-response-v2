@@ -1,0 +1,148 @@
+## Custom Collector constants
+# Base URL
+BASE_URL = "https://api.lumu.io"
+# Paths
+PATH_DNS_PACKETS = "/collectors/{collector_id}/dns/packets?key={client_key}"
+PATH_DNS_QUERIES = "/collectors/{collector_id}/dns/queries?key={client_key}"
+PATH_PROXY_ENTRIES = "/collectors/{collector_id}/proxy/entries?key={client_key}"
+PATH_FIREWALL_ENTRIES = "/collectors/{collector_id}/firewall/entries?key={client_key}"
+# Entry types
+ENTRY_TYPES = ["firewall", "dns-query", "dns-packets", "proxy"]
+# Added for handling payload size
+BODY_MAX_SIZE = 3145728
+BODY_MAX_ITEMS = 1000
+# Global for post_entries
+PATH_POST_ENTRY_TYPES = {
+    "firewall": PATH_FIREWALL_ENTRIES,
+    "dns-query": PATH_DNS_QUERIES,
+    "dns-packets": PATH_DNS_PACKETS,
+    "proxy": PATH_PROXY_ENTRIES,
+}
+# Entry types input schema base on Custom Collector API Specification [https://docs.lumu.io/portal/en/kb/articles/cc-api-specifications]
+# Also used for validation
+ENTRY_TYPES_INPUT_SCHEMAS = {
+    "firewall": [
+        "timestamp",
+        "time_taken",
+        "user_name",
+        "action",
+        "protocol",
+        "additional.path",
+        "additional.query",
+        "source.ip",
+        "source.port",
+        "source.name",
+        "destination.ip",
+        "destination.port",
+        "destination.name",
+        "sent.bytes",
+        "sent.packets",
+        "received.bytes",
+        "received.packets",
+    ],
+    "dns-query": ["timestamp", "name", "client_ip", "client_name", "type"],
+    "dns-packets": [
+        "id",
+        "timestamp",
+        "client_ip",
+        "client_name",
+        "op_code",
+        "response_code",
+        "question.type",
+        "question.name",
+        "question.class",
+        "flags.authoritative",
+        "flags.recursion_available",
+        "flags.truncated_response",
+        "flags.checking_disabled",
+        "flags.recursion_desired",
+        "flags.authentic_data",
+        "answers",
+        "answers.name",
+        "answers.type",
+        "answers.class",
+        "answers.ttl",
+        "answers.data",
+    ],
+    "proxy": [
+        "timestamp",
+        "client_ip",
+        "client_name",
+        "user_name",
+        "remote_ip",
+        "time_taken",
+        "request.uri.host",
+        "request.uri.port",
+        "request.uri.scheme",
+        "request.uri.path",
+        "request.uri.query",
+        "request.method",
+        "request.length",
+        "request.body_length",
+        "request.referer",
+        "request.user_agent",
+        "response.code",
+        "response.phrase",
+        "response.length",
+        "response.body_length",
+    ],
+}
+# Field type datatypes. Used for transformation
+FIELD_TYPES = {
+    "id": "integer",
+    "timestamp": "date-time",
+    "client_ip": "string",
+    "client_name": "string",
+    "op_code": "string",
+    "response_code": "string",
+    "question.type": "string",
+    "question.name": "string",
+    "question.class": "string",
+    "flags.authoritative": "boolean",
+    "flags.recursion_available": "boolean",
+    "flags.truncated_response": "boolean",
+    "flags.checking_disabled": "boolean",
+    "flags.recursion_desired": "boolean",
+    "flags.authentic_data": "boolean",
+    "answers": "array",
+    "answers.name": "array",
+    "answers.type": "string",
+    "answers.class": "string",
+    "answers.ttl": "integer",
+    "answers.data": "string",
+    "name": "array",
+    "type": "string",
+    "user_name": "string",
+    "remote_ip": "string",
+    "time_taken": "integer",
+    "request.uri.host": "string",
+    "request.uri.port": "integer",
+    "request.uri.scheme": "string",
+    "request.uri.path": "string",
+    "request.uri.query": "string",
+    "request.method": "string",
+    "request.length": "integer",
+    "request.body_length": "integer",
+    "request.referer": "string",
+    "request.user_agent": "string",
+    "response.code": "integer",
+    "response.phrase": "string",
+    "response.length": "integer",
+    "response.body_length": "integer",
+    "action": "string",
+    "protocol": "string",
+    "additional.path": "string",
+    "additional.query": "string",
+    "source.ip": "string",
+    "source.port": "integer",
+    "source.name": "string",
+    "destination.ip": "string",
+    "destination.port": "integer",
+    "destination.name": "string",
+    "sent.bytes": "integer",
+    "sent.packets": "integer",
+    "received.bytes": "integer",
+    "received.packets": "integer",
+}
+
+## Global

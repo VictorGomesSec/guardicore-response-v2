@@ -1,0 +1,447 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#   "pydantic>=2.11.4",
+#   "pyyaml>=6.0.2",
+#   "loguru>=0.7.3",
+#   "textual==3.3.0"
+# ]
+# ///
+
+
+import json
+import uuid
+from pathlib import Path
+from typing import Type
+
+import yaml
+from pydantic import ValidationError
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.containers import Container, Horizontal
+from textual.validation import ValidationResult, Validator
+from textual.widgets import Button, Header, Footer, Input, Label, Static
+from yaml.scanner import ScannerError
+
+from applib.schemas.config import CompanyModel as AppModel
+from lumudblib.schema import CompanySchema as LumuModel
+
+
+def config_validation(integration: dict, custom_model: Type[AppModel] | Type[LumuModel]) -> AppModel | LumuModel | str:
+    try:
+        integration_config = custom_model.model_validate(integration)
+
+    except ValidationError as errors:
+        msg_error = ""
+        for error in errors.errors():
+            msg_error += \
+                f"Parameter: {'.'.join((str(loc) for loc in error['loc']))} -> type:{error['type']} -> {error['msg']}\n"
+
+        return msg_error
+    else:
+        return integration_config
+
+
+def read_yaml_config_file(config_file: str) -> list[dict] | None:
+    try:
+        file = Path(config_file)
+        with file.open(mode="r") as yml_file:
+            integrations = yaml.safe_load(yml_file)
+            if integrations is None:
+                return None
+            return integrations
+    except ScannerError:
+        return None
+    except Exception:
+        return None
+
+
+def write_yaml_config_file(config: dict | list[dict], filename: str = "integrations.yml"):
+    if isinstance(config, dict):
+        config = [config]
+    file = Path(filename)
+    with file.open('w') as yaml_file:
+        yaml.safe_dump(config, yaml_file, indent=2, default_flow_style=False)
+
+
+class UUIDValidator(Validator):
+
+    def validate(self, value: str) -> ValidationResult:
+        if not value:
+            return self.failure("UUID is required")
+
+        try:
+            uuid.UUID(value)
+            return self.success()
+        except ValueError:
+            return self.failure("Invalid UUID format")
+
+
+class IntegerValidator(Validator):
+
+    def validate(self, value: str) -> ValidationResult:
+        if not value:
+            return self.failure("Days is required")
+
+        try:
+            days = int(value)
+            if days <= 0:
+                return self.failure("Days must be positive")
+            return self.success()
+        except ValueError:
+            return self.failure("Must be a valid integer")
+
+
+class StringValidator(Validator):
+
+    def validate(self, value: str) -> ValidationResult:
+        if not value or not value.strip():
+            return self.failure("This field is required")
+        return self.success()
+
+
+class FormApp(App):
+    CSS = """
+    
+    .form-container {
+        width: 90;
+        height: auto;
+        margin: 1 2;
+        border: solid #e4e7ea;
+    }
+
+    .form-field {
+        height: 3;
+        margin: 1 0;
+    }
+
+    .form-label {
+        width: 20;
+        text-align: center;
+        margin-right: 1;
+        border: solid #e4e7ea;
+        
+        
+    }
+    
+    .title-static {
+        text-align: center;
+        margin-right: 1;
+        
+        color: #f98e00;
+    }
+
+    .form-input {
+        width: 67;
+    }
+
+    .button-container {
+        height: 3;
+        margin: 1 0;
+        text-align: center;
+    }
+
+    .result-container {
+        width: 60;
+        height: auto;
+        margin: 1 2;
+        border: solid $success;
+        background: $success 10%;
+    }
+
+    .error {
+        color: $error;
+    }
+
+    .success {
+        color: $success;
+    }
+    """
+    BINDINGS = [
+        Binding("ctrl+s", "save_form", "Save"),
+        Binding("ctrl+r", "reset_form", "Reset"),
+        Binding("ctrl+l", "reload_config", "Load Config"),
+        Binding("ctrl+q", "quit", "Quit"),
+    ]
+
+    def __init__(self):
+        super().__init__()
+        self.form_data = {}
+        self.saved_data = []
+        self.lumu_config_file = "companies.yml"
+        self.app_config_file = "integrations.yml"
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+
+        with Container(classes="form-container"):
+            yield Static("[bold]📋 Company Integration Form[/bold]", id="title", classes="title-static")
+
+            with Horizontal(classes="form-field"):
+                yield Label("Company UUID:", classes="form-label")
+                yield Input(
+                    placeholder="e.g. 8702b744-2a33-4259-82b7-442a330259f3",
+                    validators=[UUIDValidator()],
+                    id="company_uuid",
+                    classes="form-input"
+                )
+
+            with Horizontal(classes="form-field"):
+                yield Label("Defender Key:", classes="form-label")
+                yield Input(
+                    placeholder="Enter Lumu Defender Key",
+                    validators=[StringValidator()],
+                    id="defender_key",
+                    classes="form-input"
+                )
+
+            with Horizontal(classes="form-field"):
+                yield Label("Days:", classes="form-label")
+                yield Input(
+                    placeholder="e.g. 3",
+                    validators=[IntegerValidator()],
+                    id="days",
+                    classes="form-input"
+                )
+
+            with Horizontal(classes="form-field"):
+                yield Label("Client Name:", classes="form-label")
+                yield Input(
+                    placeholder="Enter the client's name. Please do not use special characters",
+                    validators=[StringValidator()],
+                    id="client_name",
+                    classes="form-input"
+                )
+
+            with Horizontal(classes="form-field"):
+                yield Label("Rule Set Name:", classes="form-label")
+                yield Input(
+                    placeholder="Enter The RuleSet Name, No special characters",
+                    validators=[StringValidator()],
+                    id="rule_set",
+                    classes="form-input"
+                )
+
+            with Horizontal(classes="form-field"):
+                yield Label("API Endpoint:", classes="form-label")
+                yield Input(
+                    placeholder="format https://Hostname|IPAddress[:Port]/",
+                    validators=[StringValidator()],
+                    id="url_management_server",
+                    classes="form-input"
+                )
+
+            with Horizontal(classes="form-field"):
+                yield Label("Username:", classes="form-label")
+                yield Input(
+                    placeholder="Enter the Username",
+                    validators=[StringValidator()],
+                    id="username",
+                    classes="form-input"
+                )
+
+            with Horizontal(classes="form-field"):
+                yield Label("Secret:", classes="form-label")
+                yield Input(
+                    placeholder="Enter the User Password",
+                    validators=[StringValidator()],
+                    id="password",
+                    classes="form-input"
+                )
+
+            with Horizontal(classes="button-container"):
+                yield Button("Save", id="save", variant="default")
+                yield Button("Reset", id="reset", variant="default")
+                yield Button("Reload", id="reload_config", variant="default")
+                yield Button("Exit", id="exit", variant="default")
+
+        yield Static("", id="result_display")
+
+        yield Footer()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "save":
+            self.save_form()
+        elif event.button.id == "reset":
+            self.reset_form()
+        elif event.button.id == "reload_config":
+            self.reload_config()
+        elif event.button.id == "exit":
+            self.exit()
+
+    def action_save_form(self) -> None:
+        self.save_form()
+
+    def action_reset_form(self) -> None:
+        self.reset_form()
+
+    def action_reload_config(self) -> None:
+        self.reload_config()
+
+    def save_form(self) -> None:
+
+        company_uuid_input = self.query_one("#company_uuid", Input)
+        defender_key_input = self.query_one("#defender_key", Input)
+        days_input = self.query_one("#days", Input)
+        client_name_input = self.query_one("#client_name", Input)
+        rule_set_input = self.query_one("#rule_set", Input)
+        url_management_server_input = self.query_one("#url_management_server", Input)
+        username_input = self.query_one("#username", Input)
+        password_input = self.query_one("#password", Input)
+
+        if not all([
+            company_uuid_input.is_valid,
+            defender_key_input.is_valid,
+            days_input.is_valid,
+            client_name_input.is_valid,
+            rule_set_input.is_valid,
+            url_management_server_input.is_valid,
+            username_input.is_valid,
+            password_input.is_valid
+        ]):
+            self.show_message("❌ Please fix validation errors before saving", "error")
+            return
+
+        if not all([
+            company_uuid_input.value,
+            defender_key_input.value,
+            days_input.value,
+            client_name_input.value,
+            rule_set_input.value,
+            url_management_server_input.value,
+            username_input.value,
+            password_input.value
+        ]):
+            self.show_message("❌ Please fill in all fields", "error")
+            return
+
+        try:
+            lumu_form_data = {
+                'lumu': {
+                    'days': int(days_input.value),
+                    'uuid': uuid.UUID(company_uuid_input.value),
+                    'defender_key': defender_key_input.value
+                }
+            }
+
+            app_form_data = {
+                'app': {
+                    'api': {
+                        'url_management_server': url_management_server_input.value,
+                        'password': password_input.value,
+                        'username': username_input.value
+                    },
+                    'name': client_name_input.value,
+                    'rule_set': rule_set_input.value,
+                },
+                'lumu': {
+                    'days': int(days_input.value),
+                    'uuid': uuid.UUID(company_uuid_input.value)}
+            }
+
+            lumu_config = config_validation(lumu_form_data, LumuModel)
+            app_config = config_validation(app_form_data, AppModel)
+
+            if isinstance(lumu_config, str):
+                self.show_message(lumu_config, "error")
+                return
+            if isinstance(app_config, str):
+                self.show_message(app_config, "error")
+                return
+
+            write_yaml_config_file(json.loads(lumu_config.model_dump_json()), self.lumu_config_file)
+            write_yaml_config_file(json.loads(app_config.model_dump_json()), self.app_config_file)
+
+            self.show_message(
+                "✅ Form saved successfully!\n\n✍️. For advanced configurations, please edit the companies.yml and integrations.yml files.",
+                "success")
+
+        except Exception as e:
+            self.show_message(f"❌ Error saving form: {e}", "error")
+
+    def reset_form(self) -> None:
+        """Clear all form fields."""
+        self.query_one("#company_uuid", Input).value = ""
+        self.query_one("#defender_key", Input).value = ""
+        self.query_one("#days", Input).value = ""
+        self.query_one("#client_name", Input).value = ""
+        self.query_one("#rule_set", Input).value = ""
+        self.query_one("#url_management_server", Input).value = ""
+        self.query_one("#username", Input).value = ""
+        self.query_one("#password", Input).value = ""
+        self.show_message("🔄 Form reset", "success")
+
+    def reload_config(self) -> None:
+        lumu_config = self.lumu_config_file
+        app_config = self.app_config_file
+        companies = read_yaml_config_file(lumu_config)
+        integrations = read_yaml_config_file(app_config)
+
+        if not companies:
+            self.show_message("❌ Invalid configuration file. The companies.yml file could be empty!", "error")
+            return
+
+        if not integrations:
+            self.show_message("❌ Invalid configuration file. The integrations.yml file could be empty!", "error")
+            return
+
+        if isinstance(companies, list):
+            company = companies[0]
+        else:
+            company = companies
+
+        if isinstance(integrations, list):
+            integration = integrations[0]
+        else:
+            integration = integrations
+
+        lumu_config = config_validation(company, LumuModel)
+        app_config = config_validation(integration, AppModel)
+
+        if isinstance(lumu_config, str):
+            msg_error = "❌ Invalid companies.yml configuration file, Format Error!"
+            msg_error += f"\n{app_config}"
+            self.show_message(msg_error, "error")
+            return
+        if isinstance(app_config, str):
+            msg_error = "❌ Invalid integrations.yml configuration file, Format Error!"
+            msg_error += f"\n{app_config}"
+            self.show_message(msg_error, "error")
+            return
+
+        if not app_config or not lumu_config:
+            self.show_message("❌ Invalid configuration file.", "error")
+            return
+
+        self.query_one("#company_uuid", Input).value = str(app_config.lumu.uuid)
+        self.query_one("#defender_key", Input).value = str(lumu_config.lumu.defender_key)
+        self.query_one("#days", Input).value = str(app_config.lumu.days)
+        self.query_one("#client_name", Input).value = str(app_config.app.name)
+        self.query_one("#rule_set", Input).value = str(app_config.app.rule_set)
+        self.query_one("#url_management_server", Input).value = str(app_config.app.api.url_management_server)
+        self.query_one("#username", Input).value = str(app_config.app.api.username)
+        self.query_one("#password", Input).value = str(app_config.app.api.password)
+
+        self.show_message("✅ Configuration loaded from file.", "success")
+
+    def show_message(self, message: str, type: str = "success") -> None:
+        result_display = self.query_one("#result_display", Static)
+
+        if type == "error":
+            result_display.update(f"[red]{message}[/red]")
+            result_display.add_class("error")
+            result_display.remove_class("success")
+        else:
+            result_display.update(f"[green]{message}[/green]")
+            result_display.add_class("success")
+            result_display.remove_class("error")
+
+
+def main():
+    app = FormApp()
+    app.run()
+
+
+if __name__ == "__main__":
+    main()

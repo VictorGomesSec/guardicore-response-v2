@@ -1,0 +1,13 @@
+#!/bin/bash
+
+set -e
+
+echo "[!] - Checking CURL CMD"
+curl --help &>/dev/null || sudo apt install -y curl
+
+echo "[!] - Checking UV CMD"
+if ! command -v uv &>/dev/null; then
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+fi
+
+PYTHONPATH=$PWD ./applib/tui

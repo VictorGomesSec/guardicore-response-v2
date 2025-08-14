@@ -1,0 +1,21 @@
+-
+  lumu:
+    uuid: "COMPANY_UUID"
+    defender_key: "DEFENDER_API_KEY"
+    hash_type: "sha256" # sha256 | sha1 | md5
+    ioc_types: # list of ioc types, option one, many or all
+      - ip
+    adversary:  # list of adversary types, option one, many or all
+      - C2C
+      - Malware
+      - Mining
+      - Spam
+      - Phishing
+      - Anonymizer
+    days: 3 # MIN 1, MAX 3
+-
+  COMPANY 3
+-
+  COMPANY 4
+-
+  ...
